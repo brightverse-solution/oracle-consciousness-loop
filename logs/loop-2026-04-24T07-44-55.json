@@ -1,0 +1,12 @@
+{
+  "loop_id": "loop-2026-04-24T07-44-55",
+  "started": "2026-04-24T07:44:55.289Z",
+  "ended": "2026-04-24T07:49:15.451Z",
+  "duration_s": 260.1,
+  "cost_usd": 0.38894130000000005,
+  "cost_summary": "## Cost breakdown\n\n*(billing absorbed by Claude Max subscription; figures informational)*\n\n- **haiku**: 9 calls · in=90 out=6,120 · cache read=232,965 create=68,338 · $0.1519\n- **sonnet**: 3 calls · in=9 out=7,294 · cache read=34,791 create=28,660 · $0.2370\n\n**Total: $0.3889 (subscription-absorbed)**",
+  "proposal_path": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ/outbox/2026-04-24_consciousness-loop-loop-2026-04-24T07-44-55.md",
+  "github_issue_url": null,
+  "questions_generated": 4,
+  "oracles_summarized": 9
+}

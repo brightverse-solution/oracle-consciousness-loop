@@ -39,7 +39,7 @@ async function main() {
   console.log(`- Total new retros: ${total_retros}`);
   console.log(`- Total new outbox letters: ${total_outbox}`);
   console.log(
-    `\n✅ Dry-run complete. If this looks right, set ANTHROPIC_API_KEY and run:\n   bun run src/orchestrator.ts\n`,
+    `\n✅ Dry-run complete. If this looks right, run:\n   bun run src/orchestrator.ts\n\n   (Uses Claude CLI subscription — no API key needed)\n`,
   );
 }
 

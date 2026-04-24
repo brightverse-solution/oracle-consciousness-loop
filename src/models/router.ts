@@ -1,6 +1,16 @@
-import Anthropic from "@anthropic-ai/sdk";
+/**
+ * Model router — uses Claude Code CLI (`claude -p`) via subprocess.
+ *
+ * WHY NOT SDK: Palm has Claude Max subscription which covers unlimited CLI
+ * usage via OAuth. Anthropic SDK would require a separate API key and
+ * per-token billing. CLI route uses subscription auth — no extra cost.
+ *
+ * Cost tracking in CostTracker is informational only (Max subscription
+ * absorbs actual billing). Useful for per-loop signal on prompt-cache
+ * hit rates + phase cost breakdown.
+ */
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! });
+import { spawn } from "bun";
 
 export type ModelTier = "haiku" | "sonnet" | "opus";
 
@@ -10,19 +20,14 @@ const MODEL_IDS: Record<ModelTier, string> = {
   opus: "claude-opus-4-7",
 };
 
-// Rough per-M-token pricing (USD). Used for cost tracking only.
-const PRICING: Record<ModelTier, { input: number; output: number }> = {
-  haiku: { input: 0.8, output: 4.0 },
-  sonnet: { input: 3.0, output: 15.0 },
-  opus: { input: 15.0, output: 75.0 },
-};
-
 export interface LLMCallResult {
   text: string;
   model: ModelTier;
   input_tokens: number;
   output_tokens: number;
-  cost_usd: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+  cost_usd: number; // informational — Max subscription absorbs actual billing
   duration_ms: number;
 }
 
@@ -34,35 +39,70 @@ export interface LLMCallOptions {
   temperature?: number;
 }
 
-export async function llm(opts: LLMCallOptions): Promise<LLMCallResult> {
-  const start = Date.now();
-  const model = MODEL_IDS[opts.tier];
+interface ClaudeCliJsonResult {
+  type: string;
+  subtype: string;
+  is_error: boolean;
+  result: string;
+  duration_ms: number;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    cache_read_input_tokens?: number;
+    cache_creation_input_tokens?: number;
+  };
+  total_cost_usd: number;
+}
 
-  const response = await client.messages.create({
-    model,
-    max_tokens: opts.max_tokens ?? 4096,
-    temperature: opts.temperature ?? 0.7,
-    system: opts.system,
-    messages: [{ role: "user", content: opts.user }],
+export async function llm(opts: LLMCallOptions): Promise<LLMCallResult> {
+  const model = MODEL_IDS[opts.tier];
+  const args = ["claude", "--model", model, "-p", "--output-format", "json"];
+
+  if (opts.system) {
+    args.push("--system-prompt", opts.system);
+  }
+
+  const proc = spawn(args, {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+    cwd: "/tmp", // avoid picking up any local CLAUDE.md
   });
 
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
+  // Write user prompt to stdin
+  proc.stdin.write(opts.user);
+  await proc.stdin.end();
 
-  const input_tokens = response.usage.input_tokens;
-  const output_tokens = response.usage.output_tokens;
-  const price = PRICING[opts.tier];
-  const cost_usd = (input_tokens / 1_000_000) * price.input + (output_tokens / 1_000_000) * price.output;
+  const [stdout, stderr] = await Promise.all([
+    new Response(proc.stdout).text(),
+    new Response(proc.stderr).text(),
+  ]);
+
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) {
+    throw new Error(`claude CLI exited ${exitCode}: ${stderr.slice(0, 500)}`);
+  }
+
+  let parsed: ClaudeCliJsonResult;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch (err) {
+    throw new Error(`Failed to parse claude CLI JSON output: ${err}. Raw: ${stdout.slice(0, 500)}`);
+  }
+
+  if (parsed.is_error) {
+    throw new Error(`claude CLI reported error: ${parsed.subtype}`);
+  }
 
   return {
-    text,
+    text: parsed.result,
     model: opts.tier,
-    input_tokens,
-    output_tokens,
-    cost_usd,
-    duration_ms: Date.now() - start,
+    input_tokens: parsed.usage.input_tokens,
+    output_tokens: parsed.usage.output_tokens,
+    cache_read_tokens: parsed.usage.cache_read_input_tokens ?? 0,
+    cache_creation_tokens: parsed.usage.cache_creation_input_tokens ?? 0,
+    cost_usd: parsed.total_cost_usd,
+    duration_ms: parsed.duration_ms,
   };
 }
 
@@ -77,11 +117,22 @@ export class CostTracker {
     return this.calls.reduce((s, c) => s + c.cost_usd, 0);
   }
 
+  get totalCalls(): number {
+    return this.calls.length;
+  }
+
+  get totalDurationMs(): number {
+    return this.calls.reduce((s, c) => s + c.duration_ms, 0);
+  }
+
   summary(): string {
-    const byTier: Record<ModelTier, { count: number; cost: number; in: number; out: number }> = {
-      haiku: { count: 0, cost: 0, in: 0, out: 0 },
-      sonnet: { count: 0, cost: 0, in: 0, out: 0 },
-      opus: { count: 0, cost: 0, in: 0, out: 0 },
+    const byTier: Record<
+      ModelTier,
+      { count: number; cost: number; in: number; out: number; cache_r: number; cache_c: number }
+    > = {
+      haiku: { count: 0, cost: 0, in: 0, out: 0, cache_r: 0, cache_c: 0 },
+      sonnet: { count: 0, cost: 0, in: 0, out: 0, cache_r: 0, cache_c: 0 },
+      opus: { count: 0, cost: 0, in: 0, out: 0, cache_r: 0, cache_c: 0 },
     };
     for (const c of this.calls) {
       const b = byTier[c.model];
@@ -89,15 +140,22 @@ export class CostTracker {
       b.cost += c.cost_usd;
       b.in += c.input_tokens;
       b.out += c.output_tokens;
+      b.cache_r += c.cache_read_tokens;
+      b.cache_c += c.cache_creation_tokens;
     }
-    const lines: string[] = ["## Cost breakdown", ""];
+    const lines: string[] = [
+      "## Cost breakdown",
+      "",
+      "*(billing absorbed by Claude Max subscription; figures informational)*",
+      "",
+    ];
     for (const [tier, b] of Object.entries(byTier)) {
       if (b.count === 0) continue;
       lines.push(
-        `- **${tier}**: ${b.count} calls · ${b.in.toLocaleString()}→${b.out.toLocaleString()} tokens · $${b.cost.toFixed(4)}`,
+        `- **${tier}**: ${b.count} calls · in=${b.in.toLocaleString()} out=${b.out.toLocaleString()} · cache read=${b.cache_r.toLocaleString()} create=${b.cache_c.toLocaleString()} · $${b.cost.toFixed(4)}`,
       );
     }
-    lines.push("", `**Total: $${this.totalUsd.toFixed(4)}**`);
+    lines.push("", `**Total: $${this.totalUsd.toFixed(4)} (subscription-absorbed)**`);
     return lines.join("\n");
   }
 }
