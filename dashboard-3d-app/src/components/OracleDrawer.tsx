@@ -35,7 +35,7 @@ export default function OracleDrawer({
       style={{
         position: "fixed",
         left: 16,
-        top: 80,
+        top: 320,
         width: 360,
         maxHeight: "calc(100vh - 100px)",
         background: "rgba(22, 33, 62, 0.92)",

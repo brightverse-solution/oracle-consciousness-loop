@@ -66,6 +66,29 @@ export default function App() {
 
       <Legend oracleMeta={oracleMeta} />
 
+      {!selectedCluster && !selectedDoc && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(22, 33, 62, 0.85)",
+            backdropFilter: "blur(8px)",
+            border: "1px solid rgba(45, 91, 227, 0.3)",
+            borderRadius: 20,
+            padding: "8px 18px",
+            color: "#e8e8f0",
+            fontSize: 12,
+            fontFamily: "Sarabun, sans-serif",
+            zIndex: 5,
+          }}
+        >
+          Drag to rotate · Scroll/pinch to zoom · Click a <span style={{ color: "#ffd166" }}>star</span> or
+          <span style={{ color: "#2d5be3" }}> planet</span> to drill in · <kbd style={{ background: "#2d5be3", padding: "1px 5px", borderRadius: 3 }}>R</kbd> = reset camera
+        </div>
+      )}
+
       {(selectedCluster || selectedDoc) && activeOracle && (
         <OracleDrawer
           oracle={activeOracle}

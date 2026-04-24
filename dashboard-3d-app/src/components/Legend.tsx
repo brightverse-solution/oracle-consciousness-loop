@@ -12,7 +12,7 @@ export default function Legend({ oracleMeta }: { oracleMeta: OracleMeta[] }) {
       style={{
         position: "fixed",
         top: 16,
-        right: 16,
+        left: 16,
         background: "rgba(22, 33, 62, 0.85)",
         backdropFilter: "blur(8px)",
         border: "1px solid rgba(45, 91, 227, 0.3)",
