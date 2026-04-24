@@ -1,0 +1,40 @@
+{
+  "name": "knowledge-map-3d",
+  "version": "0.1.0",
+  "description": "3D Knowledge Map visualization — Three.js scene with bloom, particle effects, orbital mechanics, hand tracking, and search highlighting.",
+  "type": "module",
+  "main": "src/index.ts",
+  "module": "src/index.ts",
+  "types": "src/index.ts",
+  "files": [
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "three": ">=0.150.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/three": ">=0.150.0",
+    "typescript": "^5.4.0"
+  },
+  "keywords": [
+    "3d",
+    "knowledge-map",
+    "visualization",
+    "three.js",
+    "react",
+    "bloom",
+    "particles",
+    "hand-tracking"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bombbaza/Multi-Planet-System-Knowledge-Map-3D"
+  }
+}

@@ -1,0 +1,290 @@
+#!/usr/bin/env bun
+/**
+ * Build-time data generator for 3D knowledge map.
+ * Reads all 9 Oracle vaults → generates documents/clusters/nebulae JSON.
+ *
+ * Run: bun run build-map-data
+ */
+
+import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { basename, join } from "node:path";
+
+// ─── Configuration ─────────────────────────────────────────────────────────────
+
+const VAULT_ROOT = "/Users/p4lmnpk/ghq/github.com/brightverse-solution";
+
+const ORACLES = [
+  { id: "quill-brain", name: "QuillBrain", emoji: "🪶", role: "Scribe · Parent", color: "#c7b6f0", angle: 0 },
+  { id: "forge",       name: "FORGE",      emoji: "⚒️", role: "Backend Dev",      color: "#ff8b42", angle: (2 * Math.PI * 1) / 9 },
+  { id: "prism",       name: "PRISM",      emoji: "🎨", role: "Frontend Dev",     color: "#f764a0", angle: (2 * Math.PI * 2) / 9 },
+  { id: "canvas",      name: "CANVAS",     emoji: "🖌️", role: "UI/UX Design",     color: "#8b70d8", angle: (2 * Math.PI * 3) / 9 },
+  { id: "anvil",       name: "ANVIL",      emoji: "⚙️", role: "DevOps",           color: "#5b8def", angle: (2 * Math.PI * 4) / 9 },
+  { id: "inkwell",     name: "INKWELL",    emoji: "📝", role: "Docs/Writing",     color: "#4ec9b0", angle: (2 * Math.PI * 5) / 9 },
+  { id: "ward",        name: "WARD",       emoji: "🛡️", role: "Security/QA",      color: "#6fba5b", angle: (2 * Math.PI * 6) / 9 },
+  { id: "herald",      name: "HERALD",     emoji: "📣", role: "Marketing",        color: "#e3c15b", angle: (2 * Math.PI * 7) / 9 },
+  { id: "lens",        name: "LENS",       emoji: "🔍", role: "Research",         color: "#4fc3f7", angle: (2 * Math.PI * 8) / 9 },
+];
+
+const CLUSTER_RADIUS = 40;
+const DOC_SCATTER = 8;
+
+// ─── Types (matching knowledge-map-3d library) ────────────────────────────────
+
+interface MapDocument {
+  id: string;
+  type: string;
+  sourceFile: string;
+  concepts: string[];
+  project: string | null;
+  x: number; y: number; z: number;
+  clusterId: string;
+  orbitRadius: number;
+  orbitSpeed: number;
+  orbitPhase: number;
+  orbitTilt: number;
+  parentId: string | null;
+  moonCount: number;
+  createdAt: number | null;
+  contentLength: number;
+}
+
+interface ClusterMeta {
+  id: string;
+  label: string;
+  docCount: number;
+  cx: number; cy: number; cz: number;
+  radius: number;
+  concepts: string[];
+}
+
+interface NebulaMeta {
+  id: string;
+  clusterA: string;
+  clusterB: string;
+  strength: number;
+  color: string;
+}
+
+// ─── Main ──────────────────────────────────────────────────────────────────────
+
+async function main() {
+  const documents: MapDocument[] = [];
+  const clusters: ClusterMeta[] = [];
+
+  for (const oracle of ORACLES) {
+    const cx = Math.cos(oracle.angle) * CLUSTER_RADIUS;
+    const cy = 0;
+    const cz = Math.sin(oracle.angle) * CLUSTER_RADIUS;
+
+    const vaultPath = join(VAULT_ROOT, `${oracle.id}-oracle`, "ψ");
+    const docsForCluster = await scanVault(vaultPath, oracle, cx, cy, cz);
+    documents.push(...docsForCluster);
+
+    clusters.push({
+      id: oracle.id,
+      label: `${oracle.emoji} ${oracle.name}`,
+      docCount: docsForCluster.length,
+      cx, cy, cz,
+      radius: 15,
+      concepts: [oracle.role, oracle.name],
+    });
+
+    console.log(`[build-map] ${oracle.id}: ${docsForCluster.length} documents`);
+  }
+
+  // Nebulae: cross-oracle connections — simple heuristic based on outbox letters
+  const nebulae: NebulaMeta[] = [];
+  let nebulaId = 0;
+  for (let i = 0; i < ORACLES.length; i++) {
+    for (let j = i + 1; j < ORACLES.length; j++) {
+      const oA = ORACLES[i];
+      const oB = ORACLES[j];
+      const strength = await computeCrossReferenceStrength(oA.id, oB.id, documents);
+      if (strength > 0) {
+        nebulae.push({
+          id: `nebula-${nebulaId++}`,
+          clusterA: oA.id,
+          clusterB: oB.id,
+          strength: Math.min(1, strength / 5),
+          color: blendColors(oA.color, oB.color),
+        });
+      }
+    }
+  }
+  console.log(`[build-map] ${nebulae.length} nebulae (cross-oracle connections)`);
+
+  // Stats
+  const typeCount: Record<string, number> = {};
+  for (const d of documents) typeCount[d.type] = (typeCount[d.type] ?? 0) + 1;
+
+  const payload = {
+    documents,
+    clusters,
+    nebulae,
+    stats: {
+      totalDocs: documents.length,
+      totalClusters: clusters.length,
+      byType: typeCount,
+    },
+    generated_at: new Date().toISOString(),
+    oracle_meta: ORACLES,
+  };
+
+  const out = join(import.meta.dir, "map-data.json");
+  await writeFile(out, JSON.stringify(payload, null, 2));
+  console.log(`[build-map] wrote ${out} (${documents.length} docs, ${clusters.length} clusters, ${nebulae.length} nebulae)`);
+}
+
+// ─── Vault scanning ───────────────────────────────────────────────────────────
+
+async function scanVault(
+  vaultPath: string,
+  oracle: (typeof ORACLES)[number],
+  cx: number, cy: number, cz: number,
+): Promise<MapDocument[]> {
+  const docs: MapDocument[] = [];
+  const seen = new Set<string>();
+
+  const categories = [
+    { subdir: "memory/learnings", type: "learning" },
+    { subdir: "memory/retrospectives", type: "retrospective", recursive: true },
+    { subdir: "memory/resonance", type: "resonance" },
+    { subdir: "outbox", type: "letter" },
+    { subdir: "inbox", type: "inbox", recursive: true },
+    { subdir: "writing", type: "writing", recursive: true },
+    { subdir: "learn", type: "learn", recursive: true },
+  ];
+
+  for (const cat of categories) {
+    const dir = join(vaultPath, cat.subdir);
+    const files = await listMarkdown(dir, cat.recursive ?? false);
+    for (const f of files) {
+      if (seen.has(f.path)) continue;
+      seen.add(f.path);
+
+      // Orbital params (deterministic from path hash so rerenders are stable)
+      const h = hash(f.path);
+      const orbitRadius = 2 + (h % 100) / 10;   // 2-12
+      const orbitSpeed = 0.001 + (h % 20) / 20000; // small
+      const orbitPhase = ((h >> 4) % 628) / 100;   // 0-2π
+      const orbitTilt = (((h >> 8) % 100) - 50) / 200; // -0.25..0.25
+
+      // Scatter: put planets at random-but-stable positions around cluster center
+      const sx = cx + Math.cos(orbitPhase) * orbitRadius;
+      const sy = cy + ((h >> 12) % 40 - 20) / 10;
+      const sz = cz + Math.sin(orbitPhase) * orbitRadius;
+
+      const concepts = extractConcepts(f.content);
+
+      docs.push({
+        id: `${oracle.id}:${basename(f.path)}`,
+        type: cat.type,
+        sourceFile: basename(f.path),
+        concepts,
+        project: oracle.id,
+        x: sx, y: sy, z: sz,
+        clusterId: oracle.id,
+        orbitRadius,
+        orbitSpeed,
+        orbitPhase,
+        orbitTilt,
+        parentId: null,
+        moonCount: 0,
+        createdAt: f.mtime.getTime(),
+        contentLength: f.size,
+      });
+    }
+  }
+
+  return docs;
+}
+
+async function listMarkdown(
+  dir: string,
+  recursive: boolean,
+): Promise<{ path: string; content: string; mtime: Date; size: number }[]> {
+  const results: { path: string; content: string; mtime: Date; size: number }[] = [];
+  try {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const e of entries) {
+      const p = join(dir, e.name);
+      if (e.isDirectory() && recursive) {
+        results.push(...(await listMarkdown(p, true)));
+      } else if (e.isFile() && e.name.endsWith(".md") && e.name !== ".gitkeep") {
+        try {
+          const s = await stat(p);
+          const content = await readFile(p, "utf-8");
+          results.push({ path: p, content, mtime: s.mtime, size: s.size });
+        } catch {
+          // skip
+        }
+      }
+    }
+  } catch {
+    // dir missing; skip
+  }
+  return results;
+}
+
+function extractConcepts(content: string): string[] {
+  const fm = content.match(/^---\s*([\s\S]*?)---/);
+  if (fm) {
+    const tagsMatch = fm[1].match(/tags:\s*\[([^\]]+)\]/);
+    if (tagsMatch) {
+      return tagsMatch[1]
+        .split(",")
+        .map((s) => s.trim().replace(/^['"]|['"]$/g, ""))
+        .filter(Boolean)
+        .slice(0, 8);
+    }
+    const tags2 = fm[1].match(/tags:\n((?:\s+-\s+.+\n?)+)/);
+    if (tags2) {
+      return tags2[1]
+        .split("\n")
+        .map((l) => l.replace(/^\s+-\s+/, "").trim())
+        .filter(Boolean)
+        .slice(0, 8);
+    }
+  }
+  return [];
+}
+
+async function computeCrossReferenceStrength(
+  oracleA: string,
+  oracleB: string,
+  allDocs: MapDocument[],
+): Promise<number> {
+  // Simple: count outbox letters from A that mention oracle B (or vice versa) in filename.
+  const letters = allDocs.filter((d) => d.type === "letter");
+  let count = 0;
+  for (const l of letters) {
+    const fname = l.sourceFile.toLowerCase();
+    const owner = l.clusterId;
+    const other = owner === oracleA ? oracleB : oracleB === owner ? oracleA : null;
+    if (!other) continue;
+    if (fname.includes(`to-${other}`) || fname.includes(`from-${other}`)) count += 1;
+  }
+  return count;
+}
+
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+function blendColors(a: string, b: string): string {
+  const pa = parseInt(a.slice(1), 16);
+  const pb = parseInt(b.slice(1), 16);
+  const ra = (pa >> 16) & 0xff, ga = (pa >> 8) & 0xff, ba = pa & 0xff;
+  const rb = (pb >> 16) & 0xff, gb = (pb >> 8) & 0xff, bb = pb & 0xff;
+  const rm = Math.round((ra + rb) / 2);
+  const gm = Math.round((ga + gb) / 2);
+  const bmix = Math.round((ba + bb) / 2);
+  return "#" + ((rm << 16) | (gm << 8) | bmix).toString(16).padStart(6, "0");
+}
+
+if (import.meta.main) await main();
