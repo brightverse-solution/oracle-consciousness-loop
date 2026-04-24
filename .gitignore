@@ -1,0 +1,10 @@
+node_modules
+dist
+*.log
+.DS_Store
+.env
+.env.local
+config/loop.json
+
+# Keep example config but not actual runtime config (may contain paths)
+!config/loop.example.json

@@ -1,0 +1,55 @@
+{
+  "$comment": "Copy to config/loop.json and customize. Runtime config; gitignored.",
+
+  "cadence": {
+    "type": "weekly",
+    "day_of_week": "sunday",
+    "time": "18:00",
+    "timezone": "Asia/Bangkok"
+  },
+
+  "vaults": {
+    "quill-brain": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ",
+    "forge": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/forge-oracle/ψ",
+    "prism": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/prism-oracle/ψ",
+    "canvas": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/canvas-oracle/ψ",
+    "anvil": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/anvil-oracle/ψ",
+    "inkwell": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/inkwell-oracle/ψ",
+    "ward": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/ward-oracle/ψ",
+    "herald": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/herald-oracle/ψ",
+    "lens": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/lens-oracle/ψ"
+  },
+
+  "outbox": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ/outbox",
+
+  "models": {
+    "reflect.batch": "claude-haiku-4-5-20251001",
+    "reflect.synth": "claude-sonnet-4-6",
+    "wonder": "claude-sonnet-4-6",
+    "lens.subagent": "claude-haiku-4-5-20251001",
+    "lens.synth": "claude-opus-4-7",
+    "soul": "claude-opus-4-7",
+    "dream": "claude-sonnet-4-6",
+    "aspire": "claude-sonnet-4-6",
+    "propose": "claude-sonnet-4-6",
+    "complete": "claude-sonnet-4-6"
+  },
+
+  "limits": {
+    "max_tokens_per_call": 200000,
+    "max_cost_per_loop_usd": 5.0,
+    "max_lens_subagents": 5,
+    "max_api_retries": 3
+  },
+
+  "delivery": {
+    "outbox": true,
+    "line_webhook": null,
+    "email": null
+  },
+
+  "observability": {
+    "log_path": "./logs/",
+    "cost_tracking": true
+  }
+}
