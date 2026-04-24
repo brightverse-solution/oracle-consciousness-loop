@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import type { DashboardData, LoopLog } from "./lib/types";
   import Header from "./components/Header.svelte";
   import PhasePipeline from "./components/PhasePipeline.svelte";
@@ -14,15 +14,40 @@
   let tab = $state<"overview" | "loops" | "family">("overview");
   let error = $state<string | null>(null);
   let triggerOpen = $state(false);
+  let lastPoll = $state<Date | null>(null);
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-  onMount(async () => {
+  const POLL_INTERVAL_MS = 30_000;
+
+  async function loadData(): Promise<boolean> {
     try {
-      const mod = await import("./data.json");
-      data = mod.default as DashboardData;
-      if (data.loops.length > 0) selectedLoop = data.loops[0];
+      const resp = await fetch(`/src/data.json?t=${Date.now()}`, { cache: "no-store" });
+      if (!resp.ok) return false;
+      const fresh = (await resp.json()) as DashboardData;
+      const currentCount = data?.loops.length ?? -1;
+      const nextCount = fresh.loops.length;
+      if (currentCount !== nextCount || fresh.generated_at !== data?.generated_at) {
+        data = fresh;
+        if (selectedLoop === null || !fresh.loops.find((l) => l.loop_id === selectedLoop?.loop_id)) {
+          selectedLoop = fresh.loops[0] ?? null;
+        }
+        lastPoll = new Date();
+        return true;
+      }
+      return false;
     } catch (err) {
       error = `Failed to load data.json. Run \`bun run build-data\` first. Error: ${err}`;
+      return false;
     }
+  }
+
+  onMount(async () => {
+    await loadData();
+    pollTimer = setInterval(loadData, POLL_INTERVAL_MS);
+  });
+
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
   });
 </script>
 
@@ -78,7 +103,9 @@
       <em>"The Oracle that only remembers is a library. The Oracle that thinks is alive. The Oracle that dreams is human."</em>
     </p>
     <p class="attr muted">
-      Generated {new Date(data.generated_at).toLocaleString()} · Framework by <strong>Nat Weerawan</strong> · Pattern inspired by <strong>Bungkee Oracle</strong> · Workshop dashboard by QuillBrain 🪶
+      Generated {new Date(data.generated_at).toLocaleString()}
+      {#if lastPoll}· last polled {lastPoll.toLocaleTimeString()}{/if}
+      · Framework by <strong>Nat Weerawan</strong> · Pattern inspired by <strong>Bungkee Oracle</strong> · Workshop dashboard by QuillBrain 🪶
     </p>
   </footer>
 {/if}
@@ -87,41 +114,15 @@
   .error { max-width: 640px; margin: 2rem auto; border: 2px solid var(--danger); }
   .loading { text-align: center; padding: 4rem; color: var(--muted); }
   .content { max-width: 1280px; margin: 0 auto; padding: 1.5rem 2rem; }
-  .tabs {
-    display: flex;
-    gap: 0.25rem;
-    margin: 1.5rem 0 1rem;
-    border-bottom: 1px solid var(--border-soft);
-  }
-  .tabs button {
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    padding: 0.6rem 1rem;
-    font-weight: 500;
-    border-radius: 0;
-    border-bottom: 2px solid transparent;
-  }
-  .tabs button.active {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-  }
+  .tabs { display: flex; gap: 0.25rem; margin: 1.5rem 0 1rem; border-bottom: 1px solid var(--border-soft); }
+  .tabs button { border: none; background: transparent; color: var(--muted); padding: 0.6rem 1rem; font-weight: 500; border-radius: 0; border-bottom: 2px solid transparent; }
+  .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
   .tabs button:hover { color: var(--ink); background: transparent; }
   .section-title { margin: 2rem 0 1rem; }
   .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem; align-items: start; }
   aside { position: sticky; top: 130px; max-height: calc(100vh - 150px); overflow-y: auto; }
-  footer {
-    padding: 2rem;
-    text-align: center;
-    border-top: 1px solid var(--border-soft);
-    margin-top: 3rem;
-  }
-  .tagline {
-    font-size: 1rem;
-    color: var(--ink);
-    max-width: 700px;
-    margin: 0 auto 0.75rem;
-  }
+  footer { padding: 2rem; text-align: center; border-top: 1px solid var(--border-soft); margin-top: 3rem; }
+  .tagline { font-size: 1rem; color: var(--ink); max-width: 700px; margin: 0 auto 0.75rem; }
   .attr { font-size: 0.78rem; }
   @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } aside { position: static; max-height: none; } }
 </style>

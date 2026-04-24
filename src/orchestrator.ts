@@ -17,6 +17,7 @@ import { soul } from "./phases/soul";
 import { dream } from "./phases/dream";
 import { aspire } from "./phases/aspire";
 import { complete } from "./phases/complete";
+import { distribute } from "./phases/distribute";
 import { propose } from "./phases/propose";
 import { parseAutonomousFlags, runAutonomous } from "./autonomous";
 
@@ -156,6 +157,20 @@ async function main() {
       tracker,
     );
 
+    // Phase 6.5: Distribute (peer letters to relevant siblings)
+    console.log("\n────────── 📬 PHASE 6.5: Distribute ──────────");
+    const distOut = await distribute({
+      reflect: reflectOut,
+      wonder: wonderOut,
+      lens: lensOut,
+      aspire: aspireOut,
+      dream: dreamOut,
+      vaults: config.vaults,
+      loop_id: loopId,
+      proposal_path: proposeOut.outbox_path,
+      github_issue_url: proposeOut.github_issue_url,
+    });
+
     const duration_s = Number(((Date.now() - start) / 1000).toFixed(1));
 
     // Phase 7: Complete (handoff + learnings)
@@ -182,6 +197,7 @@ async function main() {
     console.log(`Soul proposal:   ${soulOut.proposal_path} (${soulOut.has_proposed_shift ? "SHIFT proposed" : "no-shift"})`);
     console.log(`Dream:           ${dreamOut.vision_path}`);
     console.log(`Goals proposed:  ${aspireOut.path} (${aspireOut.goals.length} goals)`);
+    console.log(`Distributed:     ${distOut.letters_written.length} sibling letters · skipped ${distOut.skipped_oracles.length}`);
     console.log(`Handoff:         ${completeOut.handoff_path}`);
     console.log(`Learnings:       ${completeOut.learnings_path}`);
     console.log(`GitHub issue:    ${proposeOut.github_issue_url ?? "(not created)"}`);
@@ -209,6 +225,10 @@ async function main() {
       handoff_path: completeOut.handoff_path,
       learnings_path: completeOut.learnings_path,
       phases_run: 7,
+      distribution: {
+        letters_written: distOut.letters_written,
+        skipped_oracles: distOut.skipped_oracles,
+      },
     });
   } catch (err) {
     console.error("\n━━━━━━━━━━ ❌ LOOP FAILED ━━━━━━━━━━");

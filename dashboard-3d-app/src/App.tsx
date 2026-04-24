@@ -35,6 +35,36 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export default function App() {
+  const [mapData, setMapData] = useState<typeof initialData>(initialData as any);
+  const [lastPoll, setLastPoll] = useState<Date | null>(null);
+
+  // Live-poll for new data: detects overnight autonomous loops producing new docs
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        // Cache-bust so fresh JSON is fetched
+        const resp = await fetch(`/src/data/map-data.json?t=${Date.now()}`, { cache: "no-store" });
+        if (resp.ok) {
+          const fresh = await resp.json();
+          // Cheap identity check: doc count OR latest doc id
+          const currCount = mapData.documents.length;
+          const nextCount = fresh.documents.length;
+          if (currCount !== nextCount || fresh.generated_at !== mapData.generated_at) {
+            setMapData(fresh);
+            setLastPoll(new Date());
+            // eslint-disable-next-line no-console
+            console.log(`[live-poll] Updated: ${currCount} → ${nextCount} docs`);
+          }
+        }
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[live-poll] skipped:", err);
+      }
+    };
+    const id = setInterval(poll, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [mapData.generated_at, mapData.documents.length]);
+
   const documents = mapData.documents as MapDocument[];
   const clusters = mapData.clusters as ClusterMeta[];
   const nebulae = mapData.nebulae as NebulaMeta[];
@@ -68,6 +98,7 @@ export default function App() {
         } as any}
         typeColors={TYPE_COLORS}
         typeFilters={["", "learning", "retrospective", "letter", "resonance", "domain-learning"]}
+        ambientAudioSrc={undefined /* set to URL for space-ambient MP3 if desired */}
         sidebarTitle="Oracle Workshop — Knowledge Universe"
         onClusterClick={(c) => { setSelectedCluster(c); setSelectedDoc(null); }}
         onDocumentClick={(d) => { setSelectedDoc(d); setSelectedCluster(null); }}
