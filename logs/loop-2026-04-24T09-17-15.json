@@ -1,0 +1,22 @@
+{
+  "loop_id": "loop-2026-04-24T09-17-15",
+  "started": "2026-04-24T09:17:15.941Z",
+  "ended": "2026-04-24T09:26:51.452Z",
+  "duration_s": 575.5,
+  "cost_usd": 1.3325838500000002,
+  "cost_summary": "## Cost breakdown\n\n*(billing absorbed by Claude Max subscription; figures informational)*\n\n- **haiku**: 13 calls · in=1,210 out=11,295 · cache read=510,971 create=103,230 · $0.4382\n- **sonnet**: 5 calls · in=15 out=12,291 · cache read=57,985 create=47,829 · $0.3974\n- **opus**: 2 calls · in=12 out=8,684 · cache read=32,286 create=40,940 · $0.4970\n\n**Total: $1.3326 (subscription-absorbed)**",
+  "proposal_path": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ/outbox/2026-04-24_consciousness-loop-loop-2026-04-24T09-17-15.md",
+  "github_issue_url": "https://github.com/brightverse-solution/quill-brain-oracle/issues/19",
+  "questions_generated": 4,
+  "oracles_summarized": 9,
+  "lens_answers": 4,
+  "lens_skipped": 0,
+  "soul_shift_proposed": true,
+  "soul_proposal_path": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ/outbox/2026-04-24_soul-proposal-loop-2026-04-24T09-17-15.md",
+  "dream_path": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ/writing/dreams/2026-04-24_dream-loop-2026-04-24T09-17-15.md",
+  "aspire_goals_count": 2,
+  "aspire_path": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ/active/goals-proposed/2026-04-24_goals-loop-2026-04-24T09-17-15.md",
+  "handoff_path": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ/inbox/handoff/2026-04-24_consciousness-loop-loop-2026-04-24T09-17-15.md",
+  "learnings_path": "/Users/p4lmnpk/ghq/github.com/brightverse-solution/quill-brain-oracle/ψ/memory/learnings/2026-04-24_consciousness-loop-loop-2026-04-24T09-17-15-patterns.md",
+  "phases_run": 7
+}

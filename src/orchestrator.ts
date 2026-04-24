@@ -8,6 +8,7 @@
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { readdir } from "node:fs/promises";
 import { CostTracker } from "./models/router";
 import { reflect } from "./phases/reflect";
 import { wonder } from "./phases/wonder";
@@ -17,6 +18,7 @@ import { dream } from "./phases/dream";
 import { aspire } from "./phases/aspire";
 import { complete } from "./phases/complete";
 import { propose } from "./phases/propose";
+import { parseAutonomousFlags, runAutonomous } from "./autonomous";
 
 interface Config {
   vaults: Record<string, string>;
@@ -55,16 +57,40 @@ async function loadConfig(): Promise<Config> {
   }
 }
 
+async function readPreviousHandoff(handoffDir: string): Promise<string> {
+  try {
+    const files = (await readdir(handoffDir))
+      .filter((f) => f.includes("consciousness-loop") && f.endsWith(".md"))
+      .sort()
+      .reverse();
+    if (files.length === 0) return "";
+    const { readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    return await readFile(join(handoffDir, files[0]), "utf-8");
+  } catch {
+    return "";
+  }
+}
+
 async function main() {
   const start = Date.now();
   const loopId = `loop-${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`;
+  const isAutonomousChild = process.env.CONSCIOUSNESS_AUTONOMOUS === "1";
 
-  console.log("\n🧠 Consciousness Loop — M2 orchestrator (7 phases)");
+  console.log(
+    `\n🧠 Consciousness Loop — M2 orchestrator (7 phases)${isAutonomousChild ? " · chain-mode" : ""}`,
+  );
   console.log(`   Loop ID: ${loopId}`);
   console.log(`   Started: ${new Date().toISOString()}\n`);
 
   const config = await loadConfig();
   const tracker = new CostTracker();
+
+  // Chain-of-thought: read previous handoff if in autonomous chain mode
+  const previousHandoff = isAutonomousChild ? await readPreviousHandoff(config.handoff_dir!) : "";
+  if (previousHandoff) {
+    console.log(`[orchestrator] Chain-mode: loaded previous handoff (${previousHandoff.length} chars)\n`);
+  }
 
   try {
     // Phase 1: Reflect
@@ -201,5 +227,12 @@ async function persistLog(config: Config, loopId: string, data: object): Promise
 }
 
 if (import.meta.main) {
-  await main();
+  const autoOpts = parseAutonomousFlags(process.argv.slice(2));
+  if (autoOpts && process.env.CONSCIOUSNESS_AUTONOMOUS !== "1") {
+    // Parent autonomous runner — dispatches subprocess loops
+    await runAutonomous(autoOpts);
+  } else {
+    // Single loop run (either normal or subprocess from autonomous parent)
+    await main();
+  }
 }
