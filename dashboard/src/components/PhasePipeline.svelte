@@ -13,14 +13,9 @@
     { id: "complete", emoji: "🔄", name_en: "Complete", name_th: "จบรอบ", color: "var(--phase-complete)" },
   ];
 
-  // M1 has reflect+wonder+propose; M2 adds LENS dispatch (not in phase list) + Soul/Dream/Aspire/Complete
-  const IMPLEMENTED = new Set(["reflect", "wonder", "propose"]);
-  const PHASE_MILESTONE: Record<string, string> = {
-    soul: "M2",
-    dream: "M2",
-    aspire: "M2",
-    complete: "M2",
-  };
+  // M2 complete: all 7 phases implemented + LENS dispatch between Wonder and Soul
+  const IMPLEMENTED = new Set(["reflect", "wonder", "soul", "dream", "aspire", "propose", "complete"]);
+  const PHASE_MILESTONE: Record<string, string> = {};
 </script>
 
 <section class="pipeline card">
