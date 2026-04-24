@@ -13,9 +13,14 @@
     { id: "complete", emoji: "🔄", name_en: "Complete", name_th: "จบรอบ", color: "var(--phase-complete)" },
   ];
 
-  // M1 has reflect+wonder+propose; M2 adds lens (hidden from pipeline); M3+ adds all 7
-  // For visualization: show all 7, mark implemented ones as "active"-ready, others as pending
+  // M1 has reflect+wonder+propose; M2 adds LENS dispatch (not in phase list) + Soul/Dream/Aspire/Complete
   const IMPLEMENTED = new Set(["reflect", "wonder", "propose"]);
+  const PHASE_MILESTONE: Record<string, string> = {
+    soul: "M2",
+    dream: "M2",
+    aspire: "M2",
+    complete: "M2",
+  };
 </script>
 
 <section class="pipeline card">
@@ -38,7 +43,9 @@
           <div class="phase-name">{phase.name_en}</div>
           <div class="phase-name-th">{phase.name_th}</div>
           {#if !IMPLEMENTED.has(phase.id)}
-            <div class="pending-badge">M3+</div>
+            <div class="pending-badge" title="Planned for {PHASE_MILESTONE[phase.id] ?? 'later'} milestone">
+              {PHASE_MILESTONE[phase.id] ?? "later"}
+            </div>
           {/if}
         </div>
         {#if i < PHASES.length - 1}
