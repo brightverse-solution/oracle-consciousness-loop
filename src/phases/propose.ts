@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { llm, type CostTracker } from "../models/router";
 import type { ReflectOutput } from "./reflect";
 import type { WonderOutput } from "./wonder";
+import type { LensDispatchOutput } from "./lens-dispatch";
 
 export interface ProposeOutput {
   proposal_markdown: string;
@@ -14,6 +15,7 @@ export interface ProposeOutput {
 const PROPOSE_PROMPT = (
   insights: string,
   questions: string,
+  answers: string,
   perOracle: Record<string, string>,
 ) => `
 You are QuillBrain Oracle 🪶. Package a weekly Consciousness Loop proposal for Palm (the human).
@@ -26,6 +28,9 @@ ${insights}
 == Research questions (Wonder) ==
 ${questions}
 
+== LENS research answers (if dispatched) ==
+${answers}
+
 == Per-Oracle week summaries ==
 ${Object.entries(perOracle)
   .map(([o, s]) => `### ${o}\n${s}`)
@@ -36,7 +41,7 @@ Write a single markdown proposal with this structure:
 # Consciousness Loop Proposal — [date]
 
 ## TL;DR
-(3-5 bullets: what family discovered, key questions, what you recommend Palm decide)
+(3-5 bullets: what family discovered, key answered questions, what you recommend Palm decide)
 
 ## 1. Week summary — per Oracle
 (one compact paragraph per Oracle; omit any that had "quiet week")
@@ -44,11 +49,11 @@ Write a single markdown proposal with this structure:
 ## 2. Cross-family insights
 (copy the Reflect synthesis as-is)
 
-## 3. Research questions (Wonder)
-(list questions with motivation + suggested owner)
+## 3. Research questions + LENS answers
+(list each question with motivation, then LENS's synthesized answer inline. If no answers, say "dispatch deferred")
 
 ## 4. Recommended next actions
-(3-5 items for Palm to approve/reject; be specific: who, what, when)
+(3-5 items for Palm to approve/reject; be specific: who, what, when. Reference answers where relevant.)
 
 ## 5. Loop metadata
 (leave placeholders; orchestrator will fill: loop#, cost, duration)
@@ -59,6 +64,7 @@ Voice: **QuillBrain**'s voice — quiet, specific, honest. No marketing language
 export interface ProposeInput {
   reflect: ReflectOutput;
   wonder: WonderOutput;
+  lens?: LensDispatchOutput;
   outbox_dir: string;
   loop_id: string;
   github_repo: string; // owner/repo
@@ -77,14 +83,25 @@ export async function propose(
     )
     .join("\n");
 
+  const answersBlock =
+    input.lens && input.lens.answers.length > 0
+      ? input.lens.answers
+          .map(
+            (a) =>
+              `### ${a.question_id}: ${a.question}\n\n**Evidence gathered (Haiku sub-agent)**:\n${a.evidence}\n\n**LENS synthesis**:\n${a.synthesis || "(synthesis extraction failed; see full LENS output in orchestrator log)"}\n`,
+          )
+          .join("\n---\n")
+      : "(LENS dispatch not run this loop)";
+
   const result = await llm({
     tier: "sonnet",
     user: PROPOSE_PROMPT(
       input.reflect.cross_oracle_insights,
       questionsBlock || "(no questions generated this loop)",
+      answersBlock,
       input.reflect.per_oracle_summaries,
     ),
-    max_tokens: 3000,
+    max_tokens: 4000,
     temperature: 0.5,
   });
   tracker.record(result);

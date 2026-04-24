@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { CostTracker } from "./models/router";
 import { reflect } from "./phases/reflect";
 import { wonder } from "./phases/wonder";
+import { dispatchToLens } from "./phases/lens-dispatch";
 import { propose } from "./phases/propose";
 
 interface Config {
@@ -63,12 +64,20 @@ async function main() {
     const wonderOut = await wonder(reflectOut.cross_oracle_insights, tracker);
     console.log(`\n[orchestrator] Wonder produced ${wonderOut.questions.length} questions\n`);
 
+    // Phase 2.5: LENS Dispatch (M2) — research questions via Haiku sub-agents + Opus synthesis
+    console.log("────────── 🔍 PHASE 2.5: LENS Dispatch ──────────");
+    const lensOut = await dispatchToLens(wonderOut, tracker);
+    console.log(
+      `\n[orchestrator] LENS produced ${lensOut.answers.length} answers (${lensOut.skipped_count} skipped)\n`,
+    );
+
     // Phase 3: Propose
     console.log("────────── 📋 PHASE 3: Propose ──────────");
     const proposeOut = await propose(
       {
         reflect: reflectOut,
         wonder: wonderOut,
+        lens: lensOut,
         outbox_dir: config.outbox,
         loop_id: loopId,
         github_repo: config.github_repo,
@@ -99,6 +108,8 @@ async function main() {
       github_issue_url: proposeOut.github_issue_url,
       questions_generated: wonderOut.questions.length,
       oracles_summarized: Object.keys(reflectOut.per_oracle_summaries).length,
+      lens_answers: lensOut.answers.length,
+      lens_skipped: lensOut.skipped_count,
     });
   } catch (err) {
     console.error("\n━━━━━━━━━━ ❌ LOOP FAILED ━━━━━━━━━━");

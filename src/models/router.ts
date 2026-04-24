@@ -37,6 +37,10 @@ export interface LLMCallOptions {
   user: string;
   max_tokens?: number;
   temperature?: number;
+  /** Claude CLI tools to allow (e.g. "WebSearch", "WebFetch", "Bash"). Enables multi-turn agentic behavior. */
+  allowed_tools?: string[];
+  /** Max agentic turns (only applies when tools enabled). */
+  max_turns?: number;
 }
 
 interface ClaudeCliJsonResult {
@@ -60,6 +64,14 @@ export async function llm(opts: LLMCallOptions): Promise<LLMCallResult> {
 
   if (opts.system) {
     args.push("--system-prompt", opts.system);
+  }
+
+  if (opts.allowed_tools && opts.allowed_tools.length > 0) {
+    args.push("--allowedTools", opts.allowed_tools.join(" "));
+  }
+
+  if (opts.max_turns !== undefined) {
+    args.push("--max-turns", String(opts.max_turns));
   }
 
   const proc = spawn(args, {
