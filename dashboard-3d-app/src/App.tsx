@@ -18,11 +18,19 @@ interface OracleMeta {
 const TYPE_COLORS: Record<string, string> = {
   learning: "#2d5be3",       // accent blue
   retrospective: "#c7b6f0",  // purple
-  resonance: "#ffd166",       // amber
+  resonance: "#ffd166",       // amber (bright — soul marker)
   letter: "#4ec9b0",          // teal
   inbox: "#5b8def",           // soft blue
   writing: "#f764a0",         // pink
   learn: "#8b70d8",           // lavender
+  // Sub-domain parents (bigger, bolder — they're "featured stars" inside each cluster)
+  "domain-learning": "#5b8def",
+  "domain-retrospective": "#c7b6f0",
+  "domain-resonance": "#ffd166",
+  "domain-letter": "#4ec9b0",
+  "domain-inbox": "#5b8def",
+  "domain-writing": "#f764a0",
+  "domain-learn": "#8b70d8",
   default: "#a0a0b8",
 };
 
@@ -59,7 +67,7 @@ export default function App() {
           byType: stats.byType,
         } as any}
         typeColors={TYPE_COLORS}
-        typeFilters={["", "learning", "retrospective", "letter", "resonance"]}
+        typeFilters={["", "learning", "retrospective", "letter", "resonance", "domain-learning"]}
         sidebarTitle="Oracle Workshop — Knowledge Universe"
         onClusterClick={(c) => { setSelectedCluster(c); setSelectedDoc(null); }}
         onDocumentClick={(d) => { setSelectedDoc(d); setSelectedCluster(null); }}

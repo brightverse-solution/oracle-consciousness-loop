@@ -216,18 +216,68 @@ async function main() {
 
     const vaultPath = join(VAULT_ROOT, `${oracle.id}-oracle`, "ψ");
     const docsForCluster = await scanVault(vaultPath, oracle, cx, cy, cz);
-    documents.push(...docsForCluster);
+
+    // Part A: create sub-parent documents per type to form sub-clusters within this Oracle
+    const docsByType: Record<string, MapDocument[]> = {};
+    for (const d of docsForCluster) {
+      (docsByType[d.type] ??= []).push(d);
+    }
+
+    const subParents: MapDocument[] = [];
+    const typeEntries = Object.entries(docsByType).filter(([, docs]) => docs.length > 0);
+    typeEntries.forEach(([type, docs], idx) => {
+      // Sub-parent position: on a mini-ring around the cluster center
+      const subAngle = (2 * Math.PI * idx) / typeEntries.length;
+      const subDist = 5; // small radius inside cluster
+      const spx = cx + Math.cos(subAngle) * subDist;
+      const spy = cy + (idx % 2 === 0 ? 1 : -1) * 1.5;
+      const spz = cz + Math.sin(subAngle) * subDist;
+
+      const parentId = `${oracle.id}:sub:${type}`;
+      subParents.push({
+        id: parentId,
+        type: `domain-${type}`,
+        sourceFile: type.toUpperCase(),
+        concepts: [type, oracle.name],
+        project: oracle.id,
+        x: spx, y: spy, z: spz,
+        clusterId: oracle.id,
+        orbitRadius: subDist,
+        orbitSpeed: 0.0003,
+        orbitPhase: subAngle,
+        orbitTilt: 0.1,
+        parentId: null,
+        moonCount: docs.length,
+        createdAt: null,
+        contentLength: docs.reduce((s, d) => s + d.contentLength, 0),
+      });
+
+      // Reparent each document as moon of its sub-parent
+      for (const d of docs) {
+        d.parentId = parentId;
+        // Closer orbit around sub-parent
+        const localOrbit = 1 + (hash(d.id) % 30) / 20; // 1-2.5
+        d.orbitRadius = localOrbit;
+        d.x = spx + Math.cos(d.orbitPhase) * localOrbit;
+        d.y = spy;
+        d.z = spz + Math.sin(d.orbitPhase) * localOrbit;
+      }
+    });
+
+    documents.push(...subParents, ...docsForCluster);
 
     clusters.push({
       id: oracle.id,
       label: `${oracle.emoji} ${oracle.name}`,
-      docCount: docsForCluster.length,
+      docCount: docsForCluster.length + subParents.length,
       cx, cy, cz,
       radius: 15,
-      concepts: [oracle.role, oracle.name],
+      concepts: [oracle.role, oracle.name, ...typeEntries.map(([t]) => t.toUpperCase())].slice(0, 6),
     });
 
-    console.log(`[build-map] ${oracle.id}: ${docsForCluster.length} documents`);
+    console.log(
+      `[build-map] ${oracle.id}: ${docsForCluster.length} docs + ${subParents.length} sub-domains (${typeEntries.map(([t, d]) => `${t}:${d.length}`).join(", ")})`,
+    );
   }
 
   // Static nebulae: cross-oracle letter filename heuristic
