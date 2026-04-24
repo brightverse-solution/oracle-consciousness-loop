@@ -15,8 +15,24 @@
         --km3d-text-secondary: #a0a0b8;
         --km3d-text-muted: #666680;
         --km3d-accent: #2d5be3;
-        --km3d-bg-card: #16213e;
-        --km3d-border: rgba(45, 91, 227, 0.2);
+        --km3d-bg-card: rgba(10, 10, 20, 0.85);
+        --km3d-border: rgba(45, 91, 227, 0.3);
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        background:
+          radial-gradient(ellipse at 30% 20%, rgba(45, 91, 227, 0.15), transparent 50%),
+          radial-gradient(ellipse at 70% 80%, rgba(199, 182, 240, 0.1), transparent 50%),
+          radial-gradient(ellipse at 50% 50%, rgba(76, 201, 176, 0.05), transparent 70%),
+          #0a0a14;
+        z-index: -1;
+        animation: nebula-drift 30s ease-in-out infinite;
+      }
+      @keyframes nebula-drift {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.85; transform: scale(1.05); }
       }
     </style>
   </head>
