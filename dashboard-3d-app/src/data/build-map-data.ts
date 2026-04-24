@@ -65,6 +65,144 @@ interface NebulaMeta {
   color: string;
 }
 
+// ─── Loop integration (Part B) ────────────────────────────────────────────────
+
+interface LoopInsight {
+  loop_id: string;
+  loop_date: string;
+  insight_number: number;
+  title: string;
+  body_excerpt: string;
+  oracles_involved: string[];
+}
+
+interface LoopMeta {
+  loop_id: string;
+  loop_date: string;
+  proposal_path: string;
+  proposal_markdown: string;
+  insights: LoopInsight[];
+  questions: number;
+  answers: number;
+}
+
+const QB_OUTBOX = join(VAULT_ROOT, "quill-brain-oracle", "ψ", "outbox");
+const ORACLE_NAME_PATTERN = /\b(QuillBrain|FORGE|PRISM|CANVAS|ANVIL|INKWELL|WARD|HERALD|LENS)\b/gi;
+
+const LOOP_COLORS = [
+  "#4fc3f7", // loop 1 — cyan
+  "#a78bfa", // loop 2 — violet
+  "#34d399", // loop 3 — emerald
+  "#fbbf24", // loop 4 — amber
+  "#f472b6", // loop 5 — pink
+];
+
+async function scanLoops(): Promise<LoopMeta[]> {
+  const files = await readdir(QB_OUTBOX).catch(() => []);
+  const loops: LoopMeta[] = [];
+  for (const f of files) {
+    if (!f.includes("consciousness-loop-")) continue;
+    const path = join(QB_OUTBOX, f);
+    const content = await readFile(path, "utf-8");
+    const loopIdMatch = f.match(/consciousness-loop-(loop-[0-9TZ:.\-]+)\.md/);
+    if (!loopIdMatch) continue;
+    const loopId = loopIdMatch[1];
+    const dateMatch = f.match(/^(\d{4}-\d{2}-\d{2})/);
+    const loopDate = dateMatch ? dateMatch[1] : "";
+
+    const insights = parseInsights(content, loopId, loopDate);
+    const questions = (content.match(/\*\*Q\d+\*\*/g) ?? []).length;
+    const answers = content.match(/## Q\d+/g)?.length ?? 0;
+
+    loops.push({
+      loop_id: loopId,
+      loop_date: loopDate,
+      proposal_path: path,
+      proposal_markdown: content,
+      insights,
+      questions,
+      answers,
+    });
+  }
+  loops.sort((a, b) => a.loop_id.localeCompare(b.loop_id));
+  return loops;
+}
+
+function parseInsights(markdown: string, loopId: string, loopDate: string): LoopInsight[] {
+  const sectionMatch = markdown.match(
+    /##\s*2\.?\s*Cross-family insights[\s\S]*?(?=\n##\s+3\.|\n---\s*\n##\s+3|$)/i,
+  );
+  if (!sectionMatch) return [];
+  const section = sectionMatch[0];
+  const insightRegex = /###\s+(\d+)\.?\s+(.+?)\n([\s\S]*?)(?=\n###\s+\d+\.|$)/g;
+  const insights: LoopInsight[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = insightRegex.exec(section))) {
+    const num = parseInt(match[1], 10);
+    const title = match[2].trim();
+    const body = match[3].trim();
+
+    const oracles = new Set<string>();
+    let m: RegExpExecArray | null;
+    const pattern = new RegExp(ORACLE_NAME_PATTERN.source, "gi");
+    while ((m = pattern.exec(body + " " + title))) {
+      const name = m[1].toLowerCase();
+      oracles.add(name === "quillbrain" ? "quill-brain" : name);
+    }
+
+    insights.push({
+      loop_id: loopId,
+      loop_date: loopDate,
+      insight_number: num,
+      title,
+      body_excerpt: body.slice(0, 400),
+      oracles_involved: Array.from(oracles),
+    });
+  }
+  return insights;
+}
+
+function loopNebulae(loops: LoopMeta[]): NebulaMeta[] {
+  // Dedupe: aggregate all insights by (A,B) oracle pair → one nebula per pair
+  const pairMap = new Map<string, { a: string; b: string; count: number; color: string }>();
+
+  for (const [i, loop] of loops.entries()) {
+    const color = LOOP_COLORS[i % LOOP_COLORS.length];
+    for (const insight of loop.insights) {
+      const oracles = insight.oracles_involved.filter((o) =>
+        ORACLES.some((meta) => meta.id === o),
+      );
+      for (let a = 0; a < oracles.length; a++) {
+        for (let b = a + 1; b < oracles.length; b++) {
+          const [x, y] = [oracles[a], oracles[b]].sort();
+          const key = `${x}|${y}`;
+          const existing = pairMap.get(key);
+          if (existing) {
+            existing.count += 1;
+            // Use latest-loop color (overwrites earlier)
+            existing.color = color;
+          } else {
+            pairMap.set(key, { a: x, b: y, count: 1, color });
+          }
+        }
+      }
+    }
+  }
+
+  const result: NebulaMeta[] = [];
+  let nid = 1000;
+  for (const pair of pairMap.values()) {
+    result.push({
+      id: `loop-nebula-${nid++}`,
+      clusterA: pair.a,
+      clusterB: pair.b,
+      strength: Math.min(0.95, 0.3 + pair.count * 0.15), // 1 insight = 0.45, 5 = 1.0
+      color: pair.color,
+    });
+  }
+  return result;
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -92,7 +230,7 @@ async function main() {
     console.log(`[build-map] ${oracle.id}: ${docsForCluster.length} documents`);
   }
 
-  // Nebulae: cross-oracle connections — simple heuristic based on outbox letters
+  // Static nebulae: cross-oracle letter filename heuristic
   const nebulae: NebulaMeta[] = [];
   let nebulaId = 0;
   for (let i = 0; i < ORACLES.length; i++) {
@@ -111,7 +249,20 @@ async function main() {
       }
     }
   }
-  console.log(`[build-map] ${nebulae.length} nebulae (cross-oracle connections)`);
+  console.log(`[build-map] ${nebulae.length} static nebulae (outbox-letter heuristic)`);
+
+  // Part B: Loop-derived nebulae — parsed from Consciousness Loop proposals
+  const loops = await scanLoops();
+  const dynamicNebulae = loopNebulae(loops);
+  nebulae.push(...dynamicNebulae);
+  console.log(
+    `[build-map] ${loops.length} loops parsed, ${dynamicNebulae.length} loop-nebulae added`,
+  );
+  for (const l of loops) {
+    console.log(
+      `[build-map]   ${l.loop_id}: ${l.insights.length} insights, ${l.questions} Qs, ${l.answers} answers`,
+    );
+  }
 
   // Stats
   const typeCount: Record<string, number> = {};
@@ -125,7 +276,10 @@ async function main() {
       totalDocs: documents.length,
       totalClusters: clusters.length,
       byType: typeCount,
+      totalLoops: loops.length,
+      totalInsights: loops.reduce((s, l) => s + l.insights.length, 0),
     },
+    loops,
     generated_at: new Date().toISOString(),
     oracle_meta: ORACLES,
   };

@@ -4,6 +4,7 @@ import type { MapDocument, ClusterMeta, NebulaMeta } from "knowledge-map-3d";
 import mapData from "./data/map-data.json";
 import OracleDrawer from "./components/OracleDrawer";
 import Legend from "./components/Legend";
+import LoopHUD from "./components/LoopHUD";
 
 interface OracleMeta {
   id: string;
@@ -65,6 +66,7 @@ export default function App() {
       />
 
       <Legend oracleMeta={oracleMeta} />
+      <LoopHUD loops={(mapData as any).loops ?? []} />
 
       {!selectedCluster && !selectedDoc && (
         <div
