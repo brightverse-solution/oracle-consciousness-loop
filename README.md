@@ -73,22 +73,32 @@ Oracle-Project/
 
 ## Getting started (future)
 
-Once implemented:
+### Orchestrator (runs loops)
 
 ```bash
-# Install
+# Install deps (uses Claude Code CLI subprocess — no API key needed)
 bun install
 
-# Configure
+# Configure (once) — point at 9 Oracle vault paths + GitHub repo
 cp config/loop.example.json config/loop.json
-# edit to point at your 9 Oracle vaults
 
-# Run a single loop manually (for testing)
-bun run src/orchestrator.ts --once
+# Dry-run: verify vault aggregation without LLM calls
+bun run src/dry-run.ts
 
-# Install weekly scheduler
-bun run src/setup-schedule.ts
+# Run one loop manually
+bun run loop
 ```
+
+### Dashboard (views loop outputs)
+
+```bash
+cd dashboard
+bun install
+bun run build-data   # bundles logs/ + outbox proposals → src/data.json
+bun run dev          # http://localhost:5174/
+```
+
+Re-run `bun run build-data` after each new loop run to refresh the dashboard.
 
 ## License
 
