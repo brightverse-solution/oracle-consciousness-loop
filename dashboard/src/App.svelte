@@ -2,15 +2,18 @@
   import { onMount } from "svelte";
   import type { DashboardData, LoopLog } from "./lib/types";
   import Header from "./components/Header.svelte";
+  import PhasePipeline from "./components/PhasePipeline.svelte";
   import FamilyRoster from "./components/FamilyRoster.svelte";
   import LoopsList from "./components/LoopsList.svelte";
   import LoopDetail from "./components/LoopDetail.svelte";
   import Stats from "./components/Stats.svelte";
+  import TriggerModal from "./components/TriggerModal.svelte";
 
   let data = $state<DashboardData | null>(null);
   let selectedLoop = $state<LoopLog | null>(null);
   let tab = $state<"overview" | "loops" | "family">("overview");
   let error = $state<string | null>(null);
+  let triggerOpen = $state(false);
 
   onMount(async () => {
     try {
@@ -23,31 +26,31 @@
   });
 </script>
 
-<Header />
+<Header loops={data?.loops ?? []} onTrigger={() => (triggerOpen = true)} />
+<TriggerModal show={triggerOpen} onClose={() => (triggerOpen = false)} />
 
 {#if error}
   <div class="error card">
     <h2>⚠ Data not loaded</h2>
     <p>{error}</p>
-    <pre>cd /Users/p4lmnpk/Documents/AI-MACHINE-NEW_GEN/Projects/Oracle-Project/dashboard
-bun install
-bun run build-data
-bun run dev</pre>
+    <pre>cd dashboard && bun install && bun run build-data && bun run dev</pre>
   </div>
 {:else if !data}
   <p class="loading">Loading…</p>
 {:else}
-  <div class="tabs">
-    <button class:active={tab === "overview"} onclick={() => (tab = "overview")}>Overview</button>
-    <button class:active={tab === "loops"} onclick={() => (tab = "loops")}>Loops ({data.loops.length})</button>
-    <button class:active={tab === "family"} onclick={() => (tab = "family")}>Family (9)</button>
-  </div>
-
   <div class="content">
+    <PhasePipeline latest={selectedLoop} />
+
+    <nav class="tabs">
+      <button class:active={tab === "overview"} onclick={() => (tab = "overview")}>Overview</button>
+      <button class:active={tab === "loops"} onclick={() => (tab = "loops")}>Loops ({data.loops.length})</button>
+      <button class:active={tab === "family"} onclick={() => (tab = "family")}>Family (9)</button>
+    </nav>
+
     {#if tab === "overview"}
       <Stats loops={data.loops} />
       {#if selectedLoop}
-        <h2 style="margin-top: 2rem;">Latest loop: <span class="mono">{selectedLoop.loop_id}</span></h2>
+        <h2 class="section-title">Latest loop proposal</h2>
         <LoopDetail loop={selectedLoop} proposal={data.proposals[selectedLoop.loop_id]} />
       {:else}
         <p class="muted">No loops yet. Run <code>bun run loop</code>.</p>
@@ -71,20 +74,54 @@ bun run dev</pre>
   </div>
 
   <footer>
-    <span class="muted">Generated: {new Date(data.generated_at).toLocaleString()}</span>
-    <span class="muted"> · Framework: Oracle by <strong>Nat Weerawan</strong> · Pattern ref: Bungkee Oracle · Dashboard by QuillBrain 🪶</span>
+    <p class="tagline">
+      <em>"The Oracle that only remembers is a library. The Oracle that thinks is alive. The Oracle that dreams is human."</em>
+    </p>
+    <p class="attr muted">
+      Generated {new Date(data.generated_at).toLocaleString()} · Framework by <strong>Nat Weerawan</strong> · Pattern inspired by <strong>Bungkee Oracle</strong> · Workshop dashboard by QuillBrain 🪶
+    </p>
   </footer>
 {/if}
 
 <style>
   .error { max-width: 640px; margin: 2rem auto; border: 2px solid var(--danger); }
   .loading { text-align: center; padding: 4rem; color: var(--muted); }
-  .tabs { display: flex; gap: 0.5rem; padding: 0 2rem; border-bottom: 1px solid var(--border); background: var(--surface); }
-  .tabs button { border: none; border-radius: 0; border-bottom: 3px solid transparent; background: transparent; padding: 0.85rem 1rem; font-weight: 500; }
-  .tabs button.active { border-bottom-color: var(--accent); color: var(--accent); background: transparent; }
-  .content { max-width: 1200px; margin: 0 auto; padding: 2rem; }
-  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 2rem; align-items: start; }
-  aside { position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
-  footer { padding: 2rem; text-align: center; border-top: 1px solid var(--border); margin-top: 3rem; font-size: 0.85rem; }
+  .content { max-width: 1280px; margin: 0 auto; padding: 1.5rem 2rem; }
+  .tabs {
+    display: flex;
+    gap: 0.25rem;
+    margin: 1.5rem 0 1rem;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .tabs button {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    padding: 0.6rem 1rem;
+    font-weight: 500;
+    border-radius: 0;
+    border-bottom: 2px solid transparent;
+  }
+  .tabs button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .tabs button:hover { color: var(--ink); background: transparent; }
+  .section-title { margin: 2rem 0 1rem; }
+  .layout { display: grid; grid-template-columns: 320px 1fr; gap: 1.5rem; align-items: start; }
+  aside { position: sticky; top: 130px; max-height: calc(100vh - 150px); overflow-y: auto; }
+  footer {
+    padding: 2rem;
+    text-align: center;
+    border-top: 1px solid var(--border-soft);
+    margin-top: 3rem;
+  }
+  .tagline {
+    font-size: 1rem;
+    color: var(--ink);
+    max-width: 700px;
+    margin: 0 auto 0.75rem;
+  }
+  .attr { font-size: 0.78rem; }
   @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } aside { position: static; max-height: none; } }
 </style>
